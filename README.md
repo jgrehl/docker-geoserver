@@ -1,10 +1,10 @@
 [![Docker Pulls](https://badgen.net/docker/pulls/jgrehl/geoserver?icon=docker&label=pulls)](https://hub.docker.com/r/jgrehl/geoserver/)
 [![Docker Stars](https://badgen.net/docker/stars/jgrehl/geoserver?icon=docker&label=stars)](https://hub.docker.com/r/jgrehl/geoserver/)
 [![Docker Image Size](https://badgen.net/docker/size/jgrehl/geoserver?icon=docker&label=image%20size)](https://hub.docker.com/r/jgrehl/geoserver/)
-![Github stars](https://badgen.net/github/stars/jgrehl/geoserver?icon=github&label=stars)
-![Github forks](https://badgen.net/github/forks/jgrehl/geoserver?icon=github&label=forks)
-![Github issues](https://img.shields.io/github/issues/jgrehl/geoserver)
-![Github last-commit](https://img.shields.io/github/last-commit/jgrehl/geoserver)
+![Github stars](https://badgen.net/github/stars/jgrehl/docker-geoserver?icon=github&label=stars)
+![Github forks](https://badgen.net/github/forks/jgrehl/docker-geoserver?icon=github&label=forks)
+![Github issues](https://img.shields.io/github/issues/jgrehl/docker-geoserver)
+![Github last-commit](https://img.shields.io/github/last-commit/jgrehl/docker-geoserver)
 
 
 # Table of Contents
