@@ -11,30 +11,44 @@ USER_NAME=${USER:-geoserveruser}
 GEO_GROUP_NAME=${GROUP_NAME:-geoserverusers}
 
 # Add group
-if [ ! $(getent group "${GEO_GROUP_NAME}") ]; then
-  groupadd -r "${GEO_GROUP_NAME}" -g ${GROUP_ID}
+if [ ! "$(getent group "${GEO_GROUP_NAME}")" ]; then
+  groupadd -r "${GEO_GROUP_NAME}" -g "${GROUP_ID}"
 fi
 
 # Add user to system
-if id "${USER_NAME}" &>/dev/null; then
-    echo ' skipping user creation'
-else
+if ! id -u "${USER_NAME}" >/dev/null 2>&1; then
     useradd -l -m -d /home/"${USER_NAME}"/ -u "${USER_ID}" --gid "${GROUP_ID}" -s /bin/bash -G "${GEO_GROUP_NAME}" "${USER_NAME}"
 fi
 
-# Create directories
-mkdir -p  "${GEOSERVER_DATA_DIR}" "${CERT_DIR}" "${FOOTPRINTS_DATA_DIR}" "${FONTS_DIR}" "${GEOWEBCACHE_CACHE_DIR}" \
-"${GEOSERVER_HOME}" "${EXTRA_CONFIG_DIR}"
-
-
-
+# Import env and functions
 source /scripts/functions.sh
 source /scripts/env-data.sh
+
+# Create directories
+dir_creation=("${GEOSERVER_DATA_DIR}" "${CERT_DIR}" "${FOOTPRINTS_DATA_DIR}" "${FONTS_DIR}" "${GEOWEBCACHE_CACHE_DIR}"
+"${GEOSERVER_HOME}" "${EXTRA_CONFIG_DIR}" "/docker-entrypoint-geoserver.d")
+for directory in "${dir_creation[@]}"; do
+  create_dir "${directory}"
+done
+
+# Rename to match wanted context-root and so that we can unzip plugins to
+# existing directory.
+if [ x"${GEOSERVER_CONTEXT_ROOT}" != xgeoserver ]; then
+  echo "INFO: changing context-root to '${GEOSERVER_CONTEXT_ROOT}'."
+  GEOSERVER_INSTALL_DIR="$(detect_install_dir)"
+  if [ -e "${GEOSERVER_INSTALL_DIR}/webapps/geoserver" ]; then
+    mkdir -p "$(dirname -- "${GEOSERVER_INSTALL_DIR}/webapps/${GEOSERVER_CONTEXT_ROOT}")"
+    mv "${GEOSERVER_INSTALL_DIR}/webapps/geoserver" "${GEOSERVER_INSTALL_DIR}/webapps/${GEOSERVER_CONTEXT_ROOT}"
+  else
+    echo "WARN: '${GEOSERVER_INSTALL_DIR}/webapps/geoserver' not found, probably already renamed as this is probably a container restart and not first run."
+  fi
+fi
 
 # Credits https://github.com/kartoza/docker-geoserver/pull/371
 set_vars
 export  READONLY CLUSTER_DURABILITY BROKER_URL EMBEDDED_BROKER TOGGLE_MASTER TOGGLE_SLAVE BROKER_URL
-export CLUSTER_CONFIG_DIR MONITOR_AUDIT_PATH CLUSTER_LOCKFILE INSTANCE_STRING
+export CLUSTER_CONFIG_DIR MONITOR_AUDIT_PATH INSTANCE_STRING  CLUSTER_CONNECTION_RETRY_COUNT CLUSTER_CONNECTION_MAX_WAIT
+
 
 /bin/bash /scripts/start.sh
 
@@ -84,19 +98,34 @@ export JAVA_OPTS="${JAVA_OPTS} ${GEOSERVER_OPTS}"
 
 
 # Chown again - seems to fix issue with resolving all created directories
-chown -R "${USER_NAME}":"${GEO_GROUP_NAME}" "${CATALINA_HOME}" "${FOOTPRINTS_DATA_DIR}" "${GEOSERVER_DATA_DIR}" \
-"${CERT_DIR}" "${FONTS_DIR}"  /home/"${USER_NAME}"/ "${COMMUNITY_PLUGINS_DIR}" "${STABLE_PLUGINS_DIR}" \
-"${GEOSERVER_HOME}" "${EXTRA_CONFIG_DIR}"  /usr/share/fonts/ /scripts /tomcat_apps.zip \
-/tmp/ "${GEOWEBCACHE_CACHE_DIR}";chmod o+rw "${CERT_DIR}";chmod 400 ${CATALINA_HOME}/conf/*
-
-echo -e "[Entrypoint] Checking PostgreSQL connection to see if init tables are loaded: \033[0m"
-if [[  "$DB_BACKEND" =~ [Pp][Oo][Ss][Tt][Gg][Rr][Ee][Ss] ]];then
-  export PGPASSWORD="${POSTGRES_PASS}"
-  postgres_ready_status ${HOST} ${POSTGRES_PORT} ${POSTGRES_USER}
+if [[ ${RUN_AS_ROOT} =~ [Ff][Aa][Ll][Ss][Ee] ]];then
+  dir_ownership=("${CATALINA_HOME}" /home/"${USER_NAME}"/ "${COMMUNITY_PLUGINS_DIR}"
+    "${STABLE_PLUGINS_DIR}" "${GEOSERVER_HOME}" /usr/share/fonts/ /tomcat_apps.zip
+    /tmp/ "${FOOTPRINTS_DATA_DIR}" "${CERT_DIR}" "${FONTS_DIR}" /scripts/
+    "${EXTRA_CONFIG_DIR}" "/docker-entrypoint-geoserver.d" "${MONITOR_AUDIT_PATH}")
+  for directory in "${dir_ownership[@]}"; do
+    if [[ $(stat -c '%U' "${directory}") != "${USER_NAME}" ]] && [[ $(stat -c '%G' "${directory}") != "${GEO_GROUP_NAME}" ]];then
+      chown -R "${USER_NAME}":"${GEO_GROUP_NAME}" "${directory}"
+    fi
+  done
 fi
 
-if [[ -f ${GEOSERVER_HOME}/start.jar ]]; then
-  exec gosu ${USER_NAME} ${GEOSERVER_HOME}/bin/startup.sh
+chmod o+rw "${CERT_DIR}";gwc_file_perms ;chmod 400 "${CATALINA_HOME}"/conf/*
+
+if [[ ${SAMPLE_DATA} =~ [Tt][Rr][Uu][Ee] ]]; then
+  chown -R "${USER_NAME}":"${GEO_GROUP_NAME}" "${GEOSERVER_DATA_DIR}"
+fi
+
+if [[ ${RUN_AS_ROOT} =~ [Ff][Aa][Ll][Ss][Ee] ]];then
+  if [[ -f ${GEOSERVER_HOME}/start.jar ]]; then
+    exec gosu "${USER_NAME}" "${GEOSERVER_HOME}"/bin/startup.sh
+  else
+    exec gosu "${USER_NAME}" /usr/local/tomcat/bin/catalina.sh run
+  fi
 else
-  exec gosu ${USER_NAME} /usr/local/tomcat/bin/catalina.sh run
+  if [[ -f ${GEOSERVER_HOME}/start.jar ]]; then
+    exec  "${GEOSERVER_HOME}"/bin/startup.sh
+  else
+    exec  /usr/local/tomcat/bin/catalina.sh run
+  fi
 fi
