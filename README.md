@@ -51,7 +51,7 @@
 
 # Kartoza docker-geoserver
 
-A simple docker container that runs GeoServer influenced by this [docker recipe](https://github.com/eliotjordan/docker-geoserver/blob/master/Dockerfile)
+A simple docker container that runs GeoServer influenced by this [docker recipe](https://github.com/eliotjordan/docker-geoserver/blob/master/Dockerfile) 
 
 ## Getting the image
 
