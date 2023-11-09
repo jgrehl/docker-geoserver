@@ -31,8 +31,8 @@ RUN set -eux; \
 	  gosu nobody true
 
 #delete obsolete tomcat apps
-RUN rm -rf  /usr/local/tomcat/webapps/examples \
-            /usr/local/tomcat/webapps/doc;
+RUN rm -rf /opt/tomcat/webapps/docs \
+    && rm -rf /opt/tomcat/webapps/examples
 
 ENV \
     JAVA_HOME=${JAVA_HOME} \
