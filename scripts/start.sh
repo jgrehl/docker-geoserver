@@ -266,7 +266,10 @@ fi
 if [[ "${TOMCAT_EXTRAS}" =~ [Tt][Rr][Uu][Ee] ]]; then
     unzip -qq /tomcat_apps.zip -d /tmp/ &&
     cp -r  /tmp/tomcat_apps/webapps.dist/* "${CATALINA_HOME}"/webapps/ &&
-    rm -r /tmp/tomcat_apps
+    rm -r /tmp/tomcat_apps &&
+    rm -r "${CATALINA_HOME}"/webapps/docs &&
+    rm -r "${CATALINA_HOME}"/webapps/examples
+
     if [[ ${POSTGRES_JNDI} =~ [Ff][Aa][Ll][Ss][Ee] ]]; then
       if [[ -f ${EXTRA_CONFIG_DIR}/context.xml  ]]; then
         envsubst < "${EXTRA_CONFIG_DIR}"/context.xml > "${CATALINA_HOME}"/webapps/manager/META-INF/context.xml
@@ -283,7 +286,7 @@ if [[ "${TOMCAT_EXTRAS}" =~ [Tt][Rr][Uu][Ee] ]]; then
           echo -e "[Entrypoint] GENERATED tomcat  PASSWORD: \e[1;31m $TOMCAT_PASSWORD \033[0m"
         fi
     else
-       export TOMCAT_PASSWORD=${TOMCAT_PASSWORD}
+      export TOMCAT_PASSWORD=${TOMCAT_PASSWORD}
     fi
     # Setup tomcat apps manager
     export TOMCAT_USER
