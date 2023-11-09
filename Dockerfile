@@ -30,6 +30,9 @@ RUN set -eux; \
       # verify that the binary works
 	  gosu nobody true
 
+#delete obsolete tomcat apps
+RUN rm -rf  /usr/local/tomcat/webapps/examples \
+            /usr/local/tomcat/webapps/doc;
 
 ENV \
     JAVA_HOME=${JAVA_HOME} \
