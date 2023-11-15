@@ -55,7 +55,7 @@ jobs:
           import datetime
           now = datetime.datetime.utcnow()
           formatted_date = now.strftime('%Y.%m.%d')
-          echo "FORMATTED_DATE={formatted_date}" >> $GITHUB_OUTPUT
+          # echo "FORMATTED_DATE={formatted_date}" >> $GITHUB_OUTPUT
 
       - name: Build prod image
         id: docker_build_prod
