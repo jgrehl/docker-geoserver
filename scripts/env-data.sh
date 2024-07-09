@@ -15,7 +15,7 @@ if [ -z "${OPTIMIZE_LINE_WIDTH}" ]; then
 fi
 
 if [ -z "${WMS_DIR_INTEGRATION}" ]; then
-  WMS_DIR_INTEGRATION=false
+  WMS_DIR_INTEGRATION=true
 fi
 
 if [ -z "${REQUIRE_TILED_PARAMETER}" ]; then
@@ -59,7 +59,7 @@ if [ -z "${SSL}" ]; then
 fi
 
 if [ -z "${TOMCAT_EXTRAS}" ]; then
-  TOMCAT_EXTRAS=true
+  TOMCAT_EXTRAS=false
 fi
 
 if [ -z "${ROOT_WEBAPP_REDIRECT}" ]; then
@@ -112,33 +112,6 @@ fi
 
 if [ -z "${HTTPS_PROXY_PORT}" ]; then
   HTTPS_PROXY_PORT=
-fi
-
-if [ -z "${JKS_FILE}" ]; then
-  JKS_FILE=letsencrypt.jks
-fi
-
-file_env 'JKS_KEY_PASSWORD'
-if [ -z "${JKS_KEY_PASSWORD}" ]; then
-  JKS_KEY_PASSWORD='geoserver'
-fi
-
-if [ -z "${KEY_ALIAS}" ]; then
-  KEY_ALIAS=letsencrypt
-fi
-
-file_env 'JKS_STORE_PASSWORD'
-if [ -z "${JKS_STORE_PASSWORD}" ]; then
-    JKS_STORE_PASSWORD='geoserver'
-fi
-
-if [ -z "${P12_FILE}" ]; then
-    P12_FILE=letsencrypt.p12
-fi
-
-file_env 'PKCS12_PASSWORD'
-if [ -z "${PKCS12_PASSWORD}" ]; then
-    PKCS12_PASSWORD='geoserver'
 fi
 
 
@@ -267,6 +240,7 @@ if [ -z "${WPS_REQUEST}" ]; then
     WPS_REQUEST='1000/d;30s'
 fi
 
+file_env S3_SERVER_URL
 if [ -z "${S3_SERVER_URL}" ]; then
     S3_SERVER_URL=''
 fi
@@ -293,10 +267,13 @@ if [ -z "${PROXY_BASE_URL_PARAMETRIZATION}" ]; then
     PROXY_BASE_URL_PARAMETRIZATION=false
 fi
 
-if [ -z "${GEOSERVER_LOG_LEVEL}" ]; then
-    GEOSERVER_LOG_LEVEL=DEFAULT_LOGGING
+if [ -z "${GEOSERVER_LOG_PROFILE}" ]; then
+    GEOSERVER_LOG_PROFILE=DEFAULT_LOGGING
 fi
 
+if [ -z "${GEOSERVER_LOG_DIR}" ]; then
+    GEOSERVER_LOG_DIR=${GEOSERVER_DATA_DIR}/logs
+fi
 
 if [ -z "${ACTIVATE_ALL_COMMUNITY_EXTENSIONS}" ]; then
     ACTIVATE_ALL_COMMUNITY_EXTENSIONS=false
@@ -306,11 +283,12 @@ if [ -z "${ACTIVATE_ALL_STABLE_EXTENSIONS}" ]; then
     ACTIVATE_ALL_STABLE_EXTENSIONS=false
 fi
 
+file_env TOMCAT_USER
 if [ -z "${TOMCAT_USER}" ]; then
     TOMCAT_USER='tomcat'
 fi
 
-
+file_env GEOSERVER_ADMIN_USER
 if [ -z "${GEOSERVER_ADMIN_USER}" ]; then
     GEOSERVER_ADMIN_USER='admin'
 fi
@@ -395,4 +373,62 @@ fi
 
 if [ -z "${RUN_AS_ROOT}" ]; then
   RUN_AS_ROOT=false
+fi
+
+if [ -z "${JDBC_CONFIG_ENABLED}" ]; then
+  JDBC_CONFIG_ENABLED=true
+fi
+
+if [ -z "${JDBC_STORE_ENABLED}" ]; then
+  JDBC_STORE_ENABLED=true
+fi
+
+if [ -z "${JDBC_IGNORE_PATHS}" ]; then
+  JDBC_IGNORE_PATHS='data,jdbcstore,jdbcconfig,temp,tmp,logs,styles'
+fi
+# S3 Alias
+file_env S3_ALIAS
+if [ -z "${S3_ALIAS}" ]; then
+  S3_ALIAS='alias'
+fi
+
+if [ -z "${GEOSERVER_REQUIRE_FILE}" ];then
+  GEOSERVER_REQUIRE_FILE=''
+fi
+
+if [ -z "${RESET_MONITORING_LOGS}" ];then
+  RESET_MONITORING_LOGS=false
+fi
+
+if [ -z "${MONITORING_AUDIT_ENABLED}" ];then
+  MONITORING_AUDIT_ENABLED=false
+fi
+if [ -z "${MONITORING_AUDIT_ROLL_LIMIT}" ];then
+  MONITORING_AUDIT_ROLL_LIMIT=20
+fi
+if [ -z "${MONITORING_STORAGE}" ];then
+  MONITORING_STORAGE=memory
+fi
+if [ -z "${MONITORING_MODE}" ];then
+  MONITORING_MODE=history
+fi
+if [ -z "${MONITORING_SYNC}" ];then
+  MONITORING_SYNC=async
+fi
+if [ -z "${MONITORING_BODY_SIZE}" ];then
+  MONITORING_BODY_SIZE=1024
+fi
+if [ -z "${MONITORING_BBOX_LOG_CRS}"  ];then
+  MONITORING_BBOX_LOG_CRS=EPSG:4326
+fi
+if [ -z "${MONITORING_BBOX_LOG_LEVEL}" ];then
+  MONITORING_BBOX_LOG_LEVEL=no_wfs
+fi
+
+if [ -z "${ENTITY_RESOLUTION_ALLOWLIST}" ];then
+  ENTITY_RESOLUTION_ALLOWLIST="www.w3.org|schemas.opengis.net|www.opengis.net|inspire.ec.europa.eu/schemas"
+fi
+
+if [ -z "${GEOSERVER_DISABLE_STATIC_WEB_FILES}" ];then
+  GEOSERVER_DISABLE_STATIC_WEB_FILES=true
 fi
