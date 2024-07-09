@@ -61,7 +61,7 @@ export GEOSERVER_OPTS="-Djava.awt.headless=true -server -Xms${INITIAL_MEMORY} -X
        -XX:PerfDataSamplingInterval=500 -Dorg.geotools.referencing.forceXY=true \
        -XX:SoftRefLRUPolicyMSPerMB=36000  -XX:NewRatio=2 \
        -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:ParallelGCThreads=20 -XX:ConcGCThreads=5 \
-       -XX:InitiatingHeapOccupancyPercent=${INITIAL_HEAP_OCCUPANCY_PERCENT} -XX:+CMSClassUnloadingEnabled \
+       -XX:InitiatingHeapOccupancyPercent=${INITIAL_HEAP_OCCUPANCY_PERCENT}  \
        -Djts.overlay=ng \
        -Dfile.encoding=${ENCODING} \
        -Duser.timezone=${TIMEZONE} \
@@ -92,6 +92,9 @@ export GEOSERVER_OPTS="-Djava.awt.headless=true -server -Xms${INITIAL_MEMORY} -X
        -DGWC_DISKQUOTA_DISABLED=${DISKQUOTA_DISABLED} \
        -DGEOSERVER_CSRF_WHITELIST=${CSRF_WHITELIST} \
        -Dgeoserver.xframe.shouldSetPolicy=${XFRAME_OPTIONS} \
+       -DGEOSERVER_REQUIRE_FILE=${GEOSERVER_REQUIRE_FILE} \
+       -DENTITY_RESOLUTION_ALLOWLIST='"${ENTITY_RESOLUTION_ALLOWLIST}"' \
+       -DGEOSERVER_DISABLE_STATIC_WEB_FILES=${GEOSERVER_DISABLE_STATIC_WEB_FILES} \
        ${ADDITIONAL_JAVA_STARTUP_OPTIONS} "
 
 ## Prepare the JVM command line arguments
@@ -101,7 +104,7 @@ export JAVA_OPTS="${JAVA_OPTS} ${GEOSERVER_OPTS}"
 # Chown again - seems to fix issue with resolving all created directories
 if [[ ${RUN_AS_ROOT} =~ [Ff][Aa][Ll][Ss][Ee] ]];then
   dir_ownership=("${CATALINA_HOME}" /home/"${USER_NAME}"/ "${COMMUNITY_PLUGINS_DIR}"
-    "${STABLE_PLUGINS_DIR}" "${GEOSERVER_HOME}" /usr/share/fonts/ /tomcat_apps.zip
+    "${STABLE_PLUGINS_DIR}" "${REQUIRED_PLUGINS_DIR}" "${GEOSERVER_HOME}" /usr/share/fonts/ /tomcat_apps.zip
     /tmp/ "${FOOTPRINTS_DATA_DIR}" "${CERT_DIR}" "${FONTS_DIR}" /scripts/
     "${EXTRA_CONFIG_DIR}" "/docker-entrypoint-geoserver.d" "${MONITOR_AUDIT_PATH}")
   for directory in "${dir_ownership[@]}"; do
@@ -113,7 +116,23 @@ if [[ ${RUN_AS_ROOT} =~ [Ff][Aa][Ll][Ss][Ee] ]];then
     chown -R "${USER_NAME}":"${GEO_GROUP_NAME}" "${CLUSTER_CONFIG_DIR}"
   fi
   chown -R "${USER_NAME}":"${GEO_GROUP_NAME}" "${GEOSERVER_DATA_DIR}"/logging.xml
+  if [[ -d "${GEOSERVER_DATA_DIR}"/jdbcconfig ]];then
+    chown -R "${USER_NAME}":"${GEO_GROUP_NAME}" "${GEOSERVER_DATA_DIR}"/jdbcconfig
+  fi
+
+  if [[ -d "${GEOSERVER_DATA_DIR}"/jdbcstore ]];then
+    chown -R "${USER_NAME}":"${GEO_GROUP_NAME}" "${GEOSERVER_DATA_DIR}"/jdbcstore
+  fi
+  if [[ -d "${GEOSERVER_LOG_DIR}" ]];then
+    chown -R "${USER_NAME}":"${GEO_GROUP_NAME}" "${GEOSERVER_LOG_DIR}"
+  fi
+  # hazel cluster
+  if [[ -d "${GEOSERVER_DATA_DIR}"/cluster ]];then
+    chown -R "${USER_NAME}":"${GEO_GROUP_NAME}" "${GEOSERVER_DATA_DIR}"/cluster
+  fi
 fi
+
+
 
 chmod o+rw "${CERT_DIR}";gwc_file_perms ;chmod 400 "${CATALINA_HOME}"/conf/*
 

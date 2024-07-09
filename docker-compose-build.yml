@@ -24,10 +24,11 @@ services:
       - STABLE_EXTENSIONS=${STABLE_EXTENSIONS}
       - COMMUNITY_EXTENSIONS=${COMMUNITY_EXTENSIONS}
     healthcheck:
-      test: "curl --fail --silent --write-out 'HTTP CODE : %{http_code}\n' --output /dev/null -u ${GEOSERVER_ADMIN_USER}:'${GEOSERVER_ADMIN_PASSWORD}' http://localhost:8080/geoserver/rest/about/version.xml"
+      test: [ "CMD-SHELL", "curl --fail --silent --write-out 'HTTP CODE : %{http_code}\n' --output /dev/null -u $${GEOSERVER_ADMIN_USER}:$${GEOSERVER_ADMIN_PASSWORD} http://localhost:8080/geoserver/rest/about/version.xml" ]
       interval: 1m
       timeout: 10s
       retries: 3
+      start_period: 1m
     build:
       context: .
       # Use yaml anchor for reusability
@@ -36,8 +37,6 @@ services:
         JAVA_HOME: ${JAVA_HOME}
         GS_VERSION: ${GS_VERSION}
         WAR_URL: ${WAR_URL}
-        DOWNLOAD_ALL_STABLE_EXTENSIONS: ${DOWNLOAD_ALL_STABLE_EXTENSIONS}
-        DOWNLOAD_ALL_COMMUNITY_EXTENSIONS: ${DOWNLOAD_ALL_COMMUNITY_EXTENSIONS}
         STABLE_PLUGIN_BASE_URL: ${STABLE_PLUGIN_BASE_URL}
       target: geoserver-prod
 

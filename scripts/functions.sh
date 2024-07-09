@@ -1,24 +1,8 @@
 #!/usr/bin/env bash
 
-
-export request="wget --progress=bar:force:noscroll -c --tries=2 "
-
 function log() {
     echo "$0:${BASH_LINENO[*]}": $@
 }
-
-function validate_url(){
-  EXTRA_PARAMS=''
-  if [ -n "$2" ]; then
-    EXTRA_PARAMS=$2
-  fi
-  if [[ $(wget -S --spider $1  2>&1 | grep 'HTTP/1.1 200 OK') ]]; then
-    ${request} "${1}" "${2}"
-  else
-    echo -e "URL : \e[1;31m $1 does not exists \033[0m"
-  fi
-}
-
 
 function generate_random_string() {
   STRING_LENGTH=$1
@@ -126,12 +110,7 @@ function download_extension() {
   URL=$1
   PLUGIN=$2
   OUTPUT_PATH=$3
-  if curl --output /dev/null --silent --head --fail "${URL}"; then
-    ${request} "${URL}" -O "${OUTPUT_PATH}"/"${PLUGIN}".zip
-  else
-    echo -e "Plugin URL does not exist:: \e[1;31m ${URL} \033[0m"
-  fi
-
+  curl --progress-bar -fLvo "${OUTPUT_PATH}/${PLUGIN}.zip" "${URL}"
 }
 
 function validate_geo_install() {
@@ -140,6 +119,7 @@ function validate_geo_install() {
   if [[ $(ls -A "${DATA_PATH}")  ]]; then
      echo -e "\e[32m  GeoServer install dir exist proceed with install \033[0m"
   else
+    echo -e "\e[32m  GeoServer install dir does not exist, exiting \033[0m"
     exit 1
   fi
 
@@ -173,53 +153,23 @@ fi
 
 # A little logic that will fetch the geoserver war zip file if it is not available locally in the resources dir
 function package_geoserver() {
-
-if [[ ! -f /tmp/resources/geoserver-${GS_VERSION}.zip ]] || [[ ! -f /tmp/resources/geoserver-${GS_VERSION}-bin.zip ]]; then
-    if [[ "${WAR_URL}" == *\.zip ]]; then
-      if [[ "${WAR_URL}" == *\bin.zip ]];then
-        destination=/tmp/resources/geoserver-${GS_VERSION}-bin.zip
-        if curl --output /dev/null --silent --head --fail "${WAR_URL}"; then
-          ${request} "${WAR_URL}" -O "${destination}"
-        else
-            echo -e "GeoServer war file does not exist from:: \e[1;31m ${WAR_URL} \033[0m"
-            exit 1
-        fi
-        unzip /tmp/resources/geoserver-"${GS_VERSION}"-bin.zip -d /tmp/geoserver && \
-        unzip_geoserver
-      else
-        destination=/tmp/resources/geoserver-${GS_VERSION}.zip
-        if curl --output /dev/null --silent --head --fail "${WAR_URL}"; then
-          ${request} "${WAR_URL}" -O "${destination}"
-        else
-            echo -e "GeoServer war file does not exist from:: \e[1;31m ${WAR_URL} \033[0m"
-            exit 1
-        fi
-        unzip /tmp/resources/geoserver-"${GS_VERSION}".zip -d /tmp/geoserver && \
-        unzip_geoserver
-      fi
-    else
-      destination=/tmp/geoserver/geoserver.war
-      mkdir -p /tmp/geoserver/ &&
-      if curl --output /dev/null --silent --head --fail "${WAR_URL}"; then
-          ${request} "${WAR_URL}" -O ${destination} && \
-          unzip_geoserver
-        else
-            echo -e "GeoServer war file does not exist from:: \e[1;31m ${WAR_URL} \033[0m"
-            exit 1
-      fi
-    fi
-else
   if [[  -f /tmp/resources/geoserver-${GS_VERSION}.zip ]];then
     unzip /tmp/resources/geoserver-"${GS_VERSION}".zip -d /tmp/geoserver && \
     unzip_geoserver
-
   elif [[  -f /tmp/resources/geoserver-${GS_VERSION}-bin.zip  ]];then
     unzip /tmp/resources/geoserver-"${GS_VERSION}".zip -d /tmp/geoserver && \
     unzip_geoserver
-
+  else
+    if [[ -f ${REQUIRED_PLUGINS_DIR}/geoserver.zip ]]; then
+      unzip ${REQUIRED_PLUGINS_DIR}/geoserver.zip -d /tmp/geoserver && \
+      unzip_geoserver
+    elif [[ -f ${REQUIRED_PLUGINS_DIR}/geoserver.war ]]; then
+      unzip_geoserver
+    else
+      echo "GeoServer bin/war file missing, exiting installation"
+      exit 1
+    fi
   fi
-fi
-
 }
 
 # Helper function to setup cluster config for the clustering plugin
@@ -292,9 +242,9 @@ function broker_xml_config() {
 
 function s3_config() {
   cat >"${GEOSERVER_DATA_DIR}"/s3.properties <<EOF
-alias.s3.endpoint=${S3_SERVER_URL}
-alias.s3.user=${S3_USERNAME}
-alias.s3.password=${S3_PASSWORD}
+${S3_ALIAS}.s3.endpoint=${S3_SERVER_URL}
+${S3_ALIAS}.s3.user=${S3_USERNAME}
+${S3_ALIAS}.s3.password=${S3_PASSWORD}
 EOF
 
 }
@@ -312,11 +262,11 @@ function install_plugin() {
   fi
   EXT=$2
 
-  if [[ -f "${DATA_PATH}"/"${EXT}".zip ]];then
-     unzip "${DATA_PATH}"/"${EXT}".zip -d /tmp/gs_plugin
+  if [[ -f "${DATA_PATH}/${EXT}.zip" ]]; then
+     unzip "${DATA_PATH}/${EXT}.zip" -d /tmp/gs_plugin
      echo -e "\e[32m Enabling ${EXT} for GeoServer \033[0m"
      GEOSERVER_INSTALL_DIR="$(detect_install_dir)"
-     cp -r -u -p /tmp/gs_plugin/*.jar "${GEOSERVER_INSTALL_DIR}"/webapps/"${GEOSERVER_CONTEXT_ROOT}"/WEB-INF/lib/
+     cp -r -u -p /tmp/gs_plugin/*.jar "${GEOSERVER_INSTALL_DIR}/webapps/${GEOSERVER_CONTEXT_ROOT}/WEB-INF/lib/"
      rm -rf /tmp/gs_plugin
   else
     echo -e "\e[32m ${EXT} extension will not be installed because it is not available \033[0m"
@@ -385,7 +335,7 @@ function setup_logging() {
       if [[ ${CLUSTERING} =~ [Tt][Rr][Uu][Ee] ]]; then
         export LOG_PATH=${CLUSTER_CONFIG_DIR}/geoserver-${HOSTNAME}.log
       else
-        export LOG_PATH=${GEOSERVER_DATA_DIR}/logs/geoserver-${HOSTNAME}.log
+        export LOG_PATH=${GEOSERVER_LOG_DIR}/geoserver.log
       fi
       envsubst < /build_data/log4j.properties > "${CATALINA_HOME}"/log4j.properties
     fi
@@ -394,21 +344,20 @@ function setup_logging() {
 }
 
 function geoserver_logging() {
-    if [[ ${CLUSTERING} =~ [Tt][Rr][Uu][Ee] ]]; then
-        export LOG_PATH=${CLUSTER_CONFIG_DIR}/geoserver-${HOSTNAME}.log
-      else
-        create_dir "${GEOSERVER_DATA_DIR}"/logs
-        export LOG_PATH=${GEOSERVER_DATA_DIR}/logs/geoserver-${HOSTNAME}.log
-    fi
+  if [[ ${CLUSTERING} =~ [Tt][Rr][Uu][Ee] ]]; then
+      export LOG_PATH=${CLUSTER_CONFIG_DIR}/geoserver-${HOSTNAME}.log
+    else
+      create_dir "${GEOSERVER_LOG_DIR}"
+      export LOG_PATH=${GEOSERVER_LOG_DIR}/geoserver.log
+  fi
 
     echo "
 <logging>
-  <level>${GEOSERVER_LOG_LEVEL}</level>
+  <level>${GEOSERVER_LOG_PROFILE}</level>
   <location>${LOG_PATH}</location>
   <stdOutLogging>true</stdOutLogging>
 </logging>
 " > "${GEOSERVER_DATA_DIR}"/logging.xml
-
 
   if [[ ! -f ${LOG_PATH} ]];then
     touch "${LOG_PATH}"
@@ -554,20 +503,103 @@ function entry_point_script {
 
 function setup_monitoring() {
 
-if [[ -f "${EXTRA_CONFIG_DIR}"/monitor.properties ]]; then
-      envsubst < "${EXTRA_CONFIG_DIR}"/monitor.properties > "${GEOSERVER_DATA_DIR}"/monitoring/monitor.properties
-else
+  if [[ -f "${EXTRA_CONFIG_DIR}"/monitor.properties ]]; then
+        envsubst < "${EXTRA_CONFIG_DIR}"/monitor.properties > "${GEOSERVER_DATA_DIR}"/monitoring/monitor.properties
+  else
 
-cat > "${GEOSERVER_DATA_DIR}"/monitoring/monitor.properties <<EOF
-audit.enabled=true
-audit.roll_limit=40
-storage=memory
-mode=history
-sync=async
-maxBodySize=1024
-bboxLogCrs=EPSG:4326
-bboxLogLevel=no_wfs
+  cat > "${GEOSERVER_DATA_DIR}"/monitoring/monitor.properties <<EOF
+audit.enabled=${MONITORING_AUDIT_ENABLED}
+audit.roll_limit=${MONITORING_AUDIT_ROLL_LIMIT}
+storage=${MONITORING_STORAGE}
+mode=${MONITORING_MODE}
+sync=${MONITORING_SYNC}
+maxBodySize=${MONITORING_BODY_SIZE}
+bboxLogCrs=${MONITORING_BBOX_LOG_CRS}
+bboxLogLevel=${MONITORING_BBOX_LOG_LEVEL}
 EOF
-fi
+  fi
 
+}
+
+function setup_jdbc_db_config() {
+    if [[ ${ext} == 'jdbcconfig-plugin' ]];then
+        if [[  ${DB_BACKEND} =~ [Pp][Oo][Ss][Tt][Gg][Rr][Ee][Ss] ]]; then
+            PGPASSWORD="${POSTGRES_PASS}"
+            export PGPASSWORD
+            postgres_ready_status "${HOST}" "${POSTGRES_PORT}" "${POSTGRES_USER}" "$POSTGRES_DB"
+            create_dir "${GEOSERVER_DATA_DIR}"/jdbcconfig
+            cp -rn /build_data/jdbcconfig/scripts "${GEOSERVER_DATA_DIR}"/jdbcconfig/
+            postgres_ssl_setup
+            export SSL_PARAMETERS=${PARAMS}
+            if [[ -f "${EXTRA_CONFIG_DIR}"/jdbcconfig.properties ]]; then
+              envsubst < "${EXTRA_CONFIG_DIR}"/jdbcconfig.properties > "${GEOSERVER_DATA_DIR}"/jdbcconfig/jdbcconfig.properties
+            else
+              envsubst < /build_data/jdbcconfig/jdbcconfig.properties > "${GEOSERVER_DATA_DIR}"/jdbcconfig/jdbcconfig.properties
+            fi
+            check_jdbc_config_table=$(psql -d "$POSTGRES_DB" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -h "$HOST" -tAc "SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name = 'object_property')")
+            if [[  ${check_jdbc_config_table} = "t" ]]; then
+              sed -i 's/initdb=true/initdb=false/g' "${GEOSERVER_DATA_DIR}"/jdbcconfig/jdbcconfig.properties
+              sed -i 's/import=true/import=false/g' "${GEOSERVER_DATA_DIR}"/jdbcconfig/jdbcconfig.properties
+            fi
+        else
+            echo "skipping jdbc config and will use default settings"
+        fi
+    fi
+}
+
+
+function setup_jdbc_db_store() {
+    if [[ ${ext} == 'jdbcstore-plugin' ]];then
+        PGPASSWORD="${POSTGRES_PASS}"
+        export PGPASSWORD
+        postgres_ready_status "${HOST}" "${POSTGRES_PORT}" "${POSTGRES_USER}" "$POSTGRES_DB"
+        if [[  ${DB_BACKEND} =~ [Pp][Oo][Ss][Tt][Gg][Rr][Ee][Ss] ]]; then
+            create_dir "${GEOSERVER_DATA_DIR}"/jdbcstore
+            create_dir "${GEOSERVER_DATA_DIR}"/jdbcconfig
+            cp -rn /build_data/jdbcstore/scripts "${GEOSERVER_DATA_DIR}"/jdbcstore/
+            cp -rn /build_data/jdbcconfig/scripts "${GEOSERVER_DATA_DIR}"/jdbcconfig/
+            postgres_ssl_setup
+            export SSL_PARAMETERS=${PARAMS}
+            if [[ -f "${EXTRA_CONFIG_DIR}"/jdbcconfig.properties ]]; then
+              envsubst < "${EXTRA_CONFIG_DIR}"/jdbcconfig.properties > "${GEOSERVER_DATA_DIR}"/jdbcconfig/jdbcconfig.properties
+            else
+              envsubst < /build_data/jdbcconfig/jdbcconfig.properties > "${GEOSERVER_DATA_DIR}"/jdbcconfig/jdbcconfig.properties
+            fi
+            if [[ -f "${EXTRA_CONFIG_DIR}"/jdbcstore.properties ]]; then
+              envsubst < "${EXTRA_CONFIG_DIR}"/jdbcstore.properties > "${GEOSERVER_DATA_DIR}"/jdbcstore/jdbcstore.propertiesproperties
+            else
+              envsubst < /build_data/jdbcstore/jdbcstore.properties > "${GEOSERVER_DATA_DIR}"/jdbcstore/jdbcstore.propertiesproperties
+            fi
+
+            check_jdbc_store_table=$(psql -d "$POSTGRES_DB" -p "${POSTGRES_PORT}" -U "${POSTGRES_USER}" -h "${HOST}" -tAc "SELECT EXISTS(SELECT 1 from information_schema.tables where table_name = 'resources')")
+            if [[  ${check_jdbc_store_table} = "t" ]]; then
+              sed -i 's/initdb=true/initdb=false/g' "${GEOSERVER_DATA_DIR}"/jdbcstore/jdbcstore.properties
+              sed -i 's/import=true/import=false/g' "${GEOSERVER_DATA_DIR}"/jdbcstore/jdbcstore.properties
+            fi
+            check_jdbc_config_table=$(psql -d "$POSTGRES_DB" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -h "$HOST" -tAc "SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name = 'object_property')")
+            if [[  ${check_jdbc_config_table} = "t" ]]; then
+              sed -i 's/initdb=true/initdb=false/g' "${GEOSERVER_DATA_DIR}"/jdbcconfig/jdbcconfig.properties
+              sed -i 's/import=true/import=false/g' "${GEOSERVER_DATA_DIR}"/jdbcconfig/jdbcconfig.properties
+            fi
+        else
+          echo "skipping jdbc store config and will use default settings"
+        fi
+    fi
+}
+
+function setup_hz_cluster() {
+    # TODO Add http://og.cens.am:8081/opengeo-docs/sysadmin/clustering/setup.html#session-sharing
+    if [[ ${ext} == 'hz-cluster-plugin' ]];then
+        create_dir "${GEOSERVER_DATA_DIR}"/cluster
+        if [[ -f "${EXTRA_CONFIG_DIR}"/hazelcast_cluster.properties ]]; then
+          envsubst < "${EXTRA_CONFIG_DIR}"/hazelcast_cluster.properties > "${GEOSERVER_DATA_DIR}"/cluster/cluster.properties
+        else
+          envsubst < /build_data/hazelcast_cluster/cluster.properties > "${GEOSERVER_DATA_DIR}"/cluster/cluster.properties
+        fi
+        if [[ -f "${EXTRA_CONFIG_DIR}"/hazelcast.xml ]]; then
+          envsubst < "${EXTRA_CONFIG_DIR}"/hazelcast.xml > "${GEOSERVER_DATA_DIR}"/cluster/hazelcast.xml
+        else
+          envsubst < /build_data/hazelcast_cluster/hazelcast.xml > "${GEOSERVER_DATA_DIR}"/cluster/hazelcast.xml
+        fi
+    fi
 }
